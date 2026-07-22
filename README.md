@@ -1,2 +1,4 @@
 # Day-52
-System Design
+# GCC Fit Assessor
+  
+  GCC-as-a-Service Fit Assessor — v1.0 (AB Talks 60-Day Claude AI Challenge Capstone)
