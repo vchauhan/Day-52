@@ -1,1 +1,29 @@
-<h1>GCC Fit Assessor — Coming Soon</h1>
+<!--<h1>GCC Fit Assessor — Coming Soon</h1>-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — GCC Fit Assessor</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page">
+    <h1>Leads Dashboard</h1>
+    <p class="muted">Founder-only view. Not linked from the public site.</p>
+
+    <div class="card" id="passcode-gate">
+      <input type="password" id="passcode-input" placeholder="Passcode" />
+      <button id="passcode-submit">Enter</button>
+    </div>
+
+    <div class="card" id="leads-container" style="display:none;">
+      <!-- Leads table renders here once the Apps Script API exists (Day 4/6) -->
+      <p class="muted">No leads yet.</p>
+    </div>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
