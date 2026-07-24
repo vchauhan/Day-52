@@ -1,6 +1,4 @@
-// Central config — the Apps Script Web App URL gets added here on Day 4,
-// once /apps-script is deployed. Kept as one file so it's the only place
-// that needs updating if the URL ever changes.
+// Central config — the Apps Script Web App URL.
 const CONFIG = {
-  API_URL: "" // e.g. "https://script.google.com/macros/s/XXXXX/exec"
+  API_URL: "https://script.google.com/macros/s/AKfycbzXQs4Gfa0FmuzjIQJfeeEtQCy7uLqhpXiJgot4t91zUKQebRMZzUpdYiMBV2nafTEkRQ/exec"
 };
