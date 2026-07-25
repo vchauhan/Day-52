@@ -1,6 +1,7 @@
 // GCC Fit Assessor — Dashboard page controller
 // Passcode-gated fetch of leads from the Apps Script backend.
 
+
 document.addEventListener("DOMContentLoaded", () => {
   const submitBtn = document.getElementById("passcode-submit");
   const passcodeInput = document.getElementById("passcode-input");
