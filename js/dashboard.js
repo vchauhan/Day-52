@@ -7,8 +7,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const gate = document.getElementById("passcode-gate");
   const leadsContainer = document.getElementById("leads-container");
 
-  submitBtn.addEventListener("click", async () => {
-    const passcode = passcodeInput.value.trim();
+  let savedPasscode = "";
+
+  submitBtn.addEventListener("click", () => attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter"));
+
+  async function attemptLoad(passcode, btn, originalLabel) {
     if (!passcode) {
       alert("Please enter the passcode.");
       return;
@@ -18,8 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Loading...";
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Loading...`;
 
     try {
       const url = CONFIG.API_URL + "?action=getLeads&passcode=" + encodeURIComponent(passcode);
@@ -28,24 +31,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.status !== "ok") {
         alert(data.message === "Unauthorized" ? "Incorrect passcode." : "Error: " + data.message);
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Enter";
+        btn.disabled = false;
+        btn.textContent = originalLabel;
         return;
       }
 
+      savedPasscode = passcode;
       gate.style.display = "none";
       leadsContainer.style.display = "block";
       renderLeads(data.leads);
     } catch (err) {
       alert("Could not reach the server. Check your connection and try again.");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Enter";
+      btn.disabled = false;
+      btn.textContent = originalLabel;
     }
-  });
+  }
 
   function renderLeads(leads) {
     if (!leads || leads.length === 0) {
-      leadsContainer.innerHTML = `<p class="muted">No leads yet.</p>`;
+      leadsContainer.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <p class="muted" style="margin:0;">No leads yet.</p>
+          <button id="refresh-btn" style="margin:0; padding:0.4rem 0.9rem; font-size:0.85rem;">Refresh</button>
+        </div>`;
+      attachRefresh();
       return;
     }
 
@@ -54,12 +63,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const rowsHtml = sorted
       .map(
         (lead, i) => `
-        <tr class="lead-row" data-index="${i}" style="cursor:pointer; border-bottom:1px solid #334155;">
-          <td style="padding:0.5rem;">${escapeHtml(lead.name)}</td>
-          <td style="padding:0.5rem;">${escapeHtml(lead.email)}</td>
-          <td style="padding:0.5rem;">${lead.score}</td>
-          <td style="padding:0.5rem;">${escapeHtml(lead.category)}</td>
-          <td style="padding:0.5rem;">${new Date(lead.timestamp).toLocaleDateString()}</td>
+        <tr class="lead-row" data-index="${i}">
+          <td>${escapeHtml(lead.name)}</td>
+          <td>${escapeHtml(lead.email)}</td>
+          <td>${lead.score}</td>
+          <td>${escapeHtml(lead.category)}</td>
+          <td>${new Date(lead.timestamp).toLocaleDateString()}</td>
         </tr>
         <tr class="lead-detail" data-index="${i}" style="display:none; background:#0f172a;">
           <td colspan="5" style="padding:0.75rem;">
@@ -73,16 +82,13 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
 
     leadsContainer.innerHTML = `
-      <p>Leads (${leads.length})</p>
-      <table style="width:100%; border-collapse:collapse;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <p style="margin:0;">Leads (${leads.length})</p>
+        <button id="refresh-btn" style="margin:0; padding:0.4rem 0.9rem; font-size:0.85rem;">Refresh</button>
+      </div>
+      <table>
         <thead>
-          <tr style="text-align:left; border-bottom:2px solid #334155;">
-            <th style="padding:0.5rem;">Name</th>
-            <th style="padding:0.5rem;">Email</th>
-            <th style="padding:0.5rem;">Score</th>
-            <th style="padding:0.5rem;">Category</th>
-            <th style="padding:0.5rem;">When</th>
-          </tr>
+          <tr><th>Name</th><th>Email</th><th>Score</th><th>Category</th><th>When</th></tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>
@@ -95,6 +101,14 @@ document.addEventListener("DOMContentLoaded", () => {
         detail.style.display = detail.style.display === "none" ? "table-row" : "none";
       });
     });
+
+    attachRefresh();
+  }
+
+  function attachRefresh() {
+    const refreshBtn = document.getElementById("refresh-btn");
+    if (!refreshBtn) return;
+    refreshBtn.addEventListener("click", () => attemptLoad(savedPasscode, refreshBtn, "Refresh"));
   }
 
   function escapeHtml(str) {
