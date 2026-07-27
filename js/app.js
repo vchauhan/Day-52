@@ -1,6 +1,4 @@
 // GCC Fit Assessor — Assessment page controller
-// Renders questions, tracks answers, computes score, captures lead, saves to backend.
-
 document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("question-container");
   const progressLabel = document.getElementById("progress-label");
@@ -11,6 +9,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function generateLeadId() {
     return "lead-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function transitionTo(renderFn) {
+    container.classList.remove("fade-in");
+    container.classList.add("fade-out");
+    setTimeout(() => {
+      renderFn();
+      container.classList.remove("fade-out");
+      container.classList.add("fade-in");
+    }, 150);
   }
 
   function renderProgressBar(current, total) {
@@ -40,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     container.innerHTML = `
       <p id="question-text" style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">${q.text}</p>
-      <div id="options">${optionsHtml}</div>
+      <div id="options" role="radiogroup" aria-label="${q.text}">${optionsHtml}</div>
       <button id="next-btn">${currentIndex === QUESTIONS.length - 1 ? "See My Score →" : "Next →"}</button>
     `;
 
@@ -64,10 +72,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (currentIndex < QUESTIONS.length - 1) {
       currentIndex++;
-      renderQuestion();
+      transitionTo(renderQuestion);
     } else {
       result = calculateScore(answers);
-      showPreview();
+      transitionTo(showPreview);
     }
   }
 
@@ -93,48 +101,52 @@ document.addEventListener("DOMContentLoaded", () => {
       <p style="font-weight:600; margin-bottom:0.5rem;">Top reasons</p>
       <ul class="reasons-list">${result.topReasons.map((r) => `<li>${r}</li>`).join("")}</ul>
       <p style="margin-top:1.25rem;">Enter your details to unlock your recommended next step:</p>
+      <label class="field-label" for="lead-name">Name</label>
       <input type="text" id="lead-name" placeholder="Your name" />
+      <label class="field-label" for="lead-email">Email</label>
       <input type="email" id="lead-email" placeholder="Your email" />
+      <div id="field-errors"></div>
       <button id="unlock-btn">Unlock Full Report →</button>
     `;
     document.getElementById("unlock-btn").addEventListener("click", handleUnlock);
   }
 
-  async function handleUnlock() {
-    const name = document.getElementById("lead-name").value.trim();
-    const email = document.getElementById("lead-email").value.trim();
+  function handleUnlock() {
+    const nameInput = document.getElementById("lead-name");
+    const emailInput = document.getElementById("lead-email");
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const errorsEl = document.getElementById("field-errors");
+    errorsEl.innerHTML = "";
+    nameInput.classList.remove("input-error");
+    emailInput.classList.remove("input-error");
 
+    let hasError = false;
     if (!name) {
-      alert("Please enter your name.");
-      return;
+      nameInput.classList.add("input-error");
+      errorsEl.innerHTML += `<p class="field-error">Please enter your name.</p>`;
+      hasError = true;
     }
     if (!emailPattern.test(email)) {
-      alert("Please enter a valid email address.");
-      return;
+      emailInput.classList.add("input-error");
+      errorsEl.innerHTML += `<p class="field-error">Please enter a valid email address.</p>`;
+      hasError = true;
     }
+    if (hasError) return;
 
     const leadId = generateLeadId();
     const payload = {
-      name: name,
-      email: email,
-      score: result.score,
-      category: result.category,
-      topReasons: result.topReasons,
-      nextStep: result.nextStep,
-      answers: answers,
-      leadId: leadId
+      name: name, email: email, score: result.score, category: result.category,
+      topReasons: result.topReasons, nextStep: result.nextStep, answers: answers, leadId: leadId
     };
 
-    showFullReport(true); // show full report immediately, saving indicator spinning
+    transitionTo(() => showFullReport(true));
 
-    try {
-      const res = await fetch(CONFIG.API_URL, { method: "POST", body: JSON.stringify(payload) });
-      const data = await res.json();
-      updateSaveStatus(data.status === "ok", data.message, payload);
-    } catch (err) {
-      updateSaveStatus(false, null, payload);
-    }
+    fetch(CONFIG.API_URL, { method: "POST", body: JSON.stringify(payload) })
+      .then((res) => res.json())
+      .then((data) => updateSaveStatus(data.status === "ok", data.message, payload))
+      .catch(() => updateSaveStatus(false, null, payload));
   }
 
   function updateSaveStatus(success, message, payload) {
@@ -144,18 +156,15 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.innerHTML = `✓ Saved`;
       statusEl.style.color = "var(--color-success)";
     } else {
-      statusEl.innerHTML = `⚠ Could not save${message ? " (" + message + ")" : ""} <button id="retry-btn" style="margin-left:0.5rem; padding:0.35rem 0.8rem; font-size:0.85rem;">Retry</button>`;
+      statusEl.innerHTML = `⚠ Could not save${message ? " (" + message + ")" : ""} <button id="retry-btn" style="margin-left:0.5rem; padding:0.4rem 0.9rem; font-size:0.85rem; margin-top:0;">Retry</button>`;
       statusEl.style.color = "var(--color-warning)";
-      document.getElementById("retry-btn").addEventListener("click", async () => {
+      document.getElementById("retry-btn").addEventListener("click", () => {
         statusEl.innerHTML = `<span class="spinner"></span> Saving...`;
         statusEl.style.color = "var(--color-muted)";
-        try {
-          const res = await fetch(CONFIG.API_URL, { method: "POST", body: JSON.stringify(payload) });
-          const data = await res.json();
-          updateSaveStatus(data.status === "ok", data.message, payload);
-        } catch (err) {
-          updateSaveStatus(false, null, payload);
-        }
+        fetch(CONFIG.API_URL, { method: "POST", body: JSON.stringify(payload) })
+          .then((res) => res.json())
+          .then((data) => updateSaveStatus(data.status === "ok", data.message, payload))
+          .catch(() => updateSaveStatus(false, null, payload));
       });
     }
   }
