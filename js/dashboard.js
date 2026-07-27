@@ -1,7 +1,4 @@
 // GCC Fit Assessor — Dashboard page controller
-// Passcode-gated fetch of leads from the Apps Script backend.
-
-
 document.addEventListener("DOMContentLoaded", () => {
   const submitBtn = document.getElementById("passcode-submit");
   const passcodeInput = document.getElementById("passcode-input");
@@ -11,6 +8,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let savedPasscode = "";
 
   submitBtn.addEventListener("click", () => attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter"));
+  passcodeInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter");
+  });
 
   async function attemptLoad(passcode, btn, originalLabel) {
     if (!passcode) {
@@ -42,7 +42,9 @@ document.addEventListener("DOMContentLoaded", () => {
       leadsContainer.style.display = "block";
       renderLeads(data.leads);
     } catch (err) {
-      alert("Could not reach the server. Check your connection and try again.");
+      leadsContainer.style.display = "block";
+      leadsContainer.innerHTML = `<div class="error-state">⚠ Could not reach the server.<br/><button id="err-retry-btn" style="margin-top:0.75rem;">Try again</button></div>`;
+      document.getElementById("err-retry-btn").addEventListener("click", () => attemptLoad(passcode, btn, originalLabel));
       btn.disabled = false;
       btn.textContent = originalLabel;
     }
@@ -51,8 +53,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderLeads(leads) {
     if (!leads || leads.length === 0) {
       leadsContainer.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <p class="muted" style="margin:0;">No leads yet.</p>
+        <div class="empty-state">
+          <p style="margin:0 0 0.75rem;">No leads yet — they'll show up here as visitors complete the assessment.</p>
           <button id="refresh-btn" style="margin:0; padding:0.4rem 0.9rem; font-size:0.85rem;">Refresh</button>
         </div>`;
       attachRefresh();
@@ -64,15 +66,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const rowsHtml = sorted
       .map(
         (lead, i) => `
-        <tr class="lead-row" data-index="${i}">
+        <tr class="lead-row" data-index="${i}" tabindex="0" role="button" aria-expanded="false">
           <td>${escapeHtml(lead.name)}</td>
           <td>${escapeHtml(lead.email)}</td>
           <td>${lead.score}</td>
           <td>${escapeHtml(lead.category)}</td>
           <td>${new Date(lead.timestamp).toLocaleDateString()}</td>
         </tr>
-        <tr class="lead-detail" data-index="${i}" style="display:none; background:#0f172a;">
-          <td colspan="5" style="padding:0.75rem;">
+        <tr class="lead-detail" data-index="${i}" style="display:none; background:var(--color-bg);">
+          <td colspan="5" style="padding:0.85rem;">
             <strong>Top reasons:</strong>
             <ul>${lead.topReasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
             <strong>Next step:</strong> ${escapeHtml(lead.nextStep)}<br/>
@@ -88,18 +90,23 @@ document.addEventListener("DOMContentLoaded", () => {
         <button id="refresh-btn" style="margin:0; padding:0.4rem 0.9rem; font-size:0.85rem;">Refresh</button>
       </div>
       <table>
-        <thead>
-          <tr><th>Name</th><th>Email</th><th>Score</th><th>Category</th><th>When</th></tr>
-        </thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Score</th><th>Category</th><th>When</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
     `;
 
+    function toggleRow(row) {
+      const idx = row.getAttribute("data-index");
+      const detail = document.querySelector(`.lead-detail[data-index="${idx}"]`);
+      const isOpen = detail.style.display !== "none";
+      detail.style.display = isOpen ? "none" : "table-row";
+      row.setAttribute("aria-expanded", String(!isOpen));
+    }
+
     document.querySelectorAll(".lead-row").forEach((row) => {
-      row.addEventListener("click", () => {
-        const idx = row.getAttribute("data-index");
-        const detail = document.querySelector(`.lead-detail[data-index="${idx}"]`);
-        detail.style.display = detail.style.display === "none" ? "table-row" : "none";
+      row.addEventListener("click", () => toggleRow(row));
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleRow(row); }
       });
     });
 
