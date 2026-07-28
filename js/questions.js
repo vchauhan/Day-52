@@ -1,9 +1,4 @@
 // GCC Fit Assessor — Question data + scoring logic
-// NOTE: These are placeholder/dummy questions for pipeline testing.
-// Replace with the real 60-Day Challenge Fit Assessor questions when available —
-// the shape below (id, text, options with score weights) is what app.js expects,
-// so swapping content later requires no logic changes.
-
 const QUESTIONS = [
   {
     id: "q1",
@@ -57,9 +52,11 @@ const QUESTIONS = [
   }
 ];
 
-// Computes score (0-100), category, top 3 reasons, and a recommended next step
-// from an answers object like { q1: 2, q2: 3, ... } (values = option index chosen)
 function calculateScore(answers) {
+  if (!QUESTIONS || QUESTIONS.length === 0) {
+    return { score: 0, category: "Not Yet", topReasons: [], nextStep: "" };
+  }
+
   let totalWeight = 0;
   let maxPossible = 0;
   const reasonPool = [];
@@ -72,15 +69,11 @@ function calculateScore(answers) {
     if (chosenIndex !== undefined && q.options[chosenIndex]) {
       const chosen = q.options[chosenIndex];
       totalWeight += chosen.weight;
-      reasonPool.push({
-        question: q.text,
-        answer: chosen.label,
-        weight: chosen.weight
-      });
+      reasonPool.push({ question: q.text, answer: chosen.label, weight: chosen.weight });
     }
   });
 
-  const score = Math.round((totalWeight / maxPossible) * 100);
+  const score = maxPossible > 0 ? Math.round((totalWeight / maxPossible) * 100) : 0;
 
   let category, nextStep;
   if (score >= 75) {
