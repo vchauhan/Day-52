@@ -6,10 +6,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const leadsContainer = document.getElementById("leads-container");
 
   let savedPasscode = "";
+  let requestInFlight = false;
 
-  submitBtn.addEventListener("click", () => attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter"));
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function fetchWithTimeout(url, timeoutMs) {
+    return Promise.race([
+      fetch(url),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs))
+    ]);
+  }
+
+  submitBtn.addEventListener("click", () => {
+    if (requestInFlight) return;
+    attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter");
+  });
   passcodeInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter");
+    if (e.key === "Enter" && !requestInFlight) attemptLoad(passcodeInput.value.trim(), submitBtn, "Enter");
   });
 
   async function attemptLoad(passcode, btn, originalLabel) {
@@ -22,18 +39,20 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    requestInFlight = true;
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span> Loading...`;
 
     try {
       const url = CONFIG.API_URL + "?action=getLeads&passcode=" + encodeURIComponent(passcode);
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, 10000);
       const data = await res.json();
 
       if (data.status !== "ok") {
         alert(data.message === "Unauthorized" ? "Incorrect passcode." : "Error: " + data.message);
         btn.disabled = false;
         btn.textContent = originalLabel;
+        requestInFlight = false;
         return;
       }
 
@@ -41,12 +60,18 @@ document.addEventListener("DOMContentLoaded", () => {
       gate.style.display = "none";
       leadsContainer.style.display = "block";
       renderLeads(data.leads);
+      requestInFlight = false;
     } catch (err) {
+      const timedOut = err && err.message === "timeout";
       leadsContainer.style.display = "block";
-      leadsContainer.innerHTML = `<div class="error-state">⚠ Could not reach the server.<br/><button id="err-retry-btn" style="margin-top:0.75rem;">Try again</button></div>`;
-      document.getElementById("err-retry-btn").addEventListener("click", () => attemptLoad(passcode, btn, originalLabel));
+      leadsContainer.innerHTML = `<div class="error-state">⚠ ${timedOut ? "Request took too long." : "Could not reach the server."}<br/><button id="err-retry-btn" style="margin-top:0.75rem;">Try again</button></div>`;
+      document.getElementById("err-retry-btn").addEventListener("click", () => {
+        if (requestInFlight) return;
+        attemptLoad(passcode, btn, originalLabel);
+      });
       btn.disabled = false;
       btn.textContent = originalLabel;
+      requestInFlight = false;
     }
   }
 
@@ -64,24 +89,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const sorted = leads.slice().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     const rowsHtml = sorted
-      .map(
-        (lead, i) => `
+      .map((lead, i) => `
         <tr class="lead-row" data-index="${i}" tabindex="0" role="button" aria-expanded="false">
           <td>${escapeHtml(lead.name)}</td>
           <td>${escapeHtml(lead.email)}</td>
-          <td>${lead.score}</td>
+          <td>${escapeHtml(lead.score)}</td>
           <td>${escapeHtml(lead.category)}</td>
-          <td>${new Date(lead.timestamp).toLocaleDateString()}</td>
+          <td>${escapeHtml(new Date(lead.timestamp).toLocaleDateString())}</td>
         </tr>
         <tr class="lead-detail" data-index="${i}" style="display:none; background:var(--color-bg);">
           <td colspan="5" style="padding:0.85rem;">
             <strong>Top reasons:</strong>
-            <ul>${lead.topReasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+            <ul>${(lead.topReasons || []).map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
             <strong>Next step:</strong> ${escapeHtml(lead.nextStep)}<br/>
             <strong>Answers:</strong> ${escapeHtml(JSON.stringify(lead.answers))}
           </td>
-        </tr>`
-      )
+        </tr>`)
       .join("");
 
     leadsContainer.innerHTML = `
@@ -116,12 +139,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function attachRefresh() {
     const refreshBtn = document.getElementById("refresh-btn");
     if (!refreshBtn) return;
-    refreshBtn.addEventListener("click", () => attemptLoad(savedPasscode, refreshBtn, "Refresh"));
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+    refreshBtn.addEventListener("click", () => {
+      if (requestInFlight) return;
+      attemptLoad(savedPasscode, refreshBtn, "Refresh");
+    });
   }
 });
